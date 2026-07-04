@@ -1,8 +1,8 @@
-# Singapore HDB resale prices, 1990 to today
+# flatmap
 
 Every HDB resale transaction since 1990, nearly a million sales, on an explorable 3D map of Singapore. Scrub through 36 years and watch estates rise out of empty land. Click any block for its own price history. Ask the search box a question.
 
-**Live demo:** _coming soon_
+**Live demo:** [flatmap.sg](https://flatmap.sg) _(coming online shortly)_
 
 ![Island view, colored by price rank](docs/island.png)
 
