@@ -432,6 +432,46 @@
       text-align: right;
       color: var(--ink);
     }
+    @media (max-width: 640px) {
+      #title { top: 12px; left: 12px; padding: 10px 15px; }
+      #title span { display: none; }
+      #search {
+        top: 12px;
+        left: 104px;
+        right: 12px;
+        width: auto;
+        padding: 10px 13px;
+      }
+      #legend, #compass { display: none; }
+      #filter-chip {
+        top: 62px;
+        left: 12px;
+        right: auto;
+        bottom: auto;
+        max-width: calc(100vw - 24px);
+      }
+      #ticker {
+        bottom: 78px;
+        padding: 8px 14px;
+        width: calc(100vw - 24px);
+        max-width: none;
+      }
+      #stats { flex-wrap: wrap; row-gap: 1px; justify-content: center; }
+      .maplibregl-ctrl-bottom-right { bottom: 64px; }
+      #scrubber {
+        bottom: 12px;
+        width: calc(100vw - 24px);
+        padding: 6px 14px 6px 6px;
+      }
+      #panel {
+        top: 60px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-height: calc(100dvh - 168px);
+      }
+      #toast { bottom: 142px; }
+    }
     #loading {
       position: absolute;
       inset: 0;
