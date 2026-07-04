@@ -60,12 +60,60 @@ const map = new maplibregl.Map({
 const mapLoaded = new Promise<void>((res) => map.on("load", () => res()));
 
 // ---------------------------------------------------------------- data ----
+// The two big files stream with byte progress, driving the loader's live
+// sales counter (decoded bytes vs the known decoded total).
+
+const EXPECTED_BYTES = 32_421_971; // decoded bytes of buildings.json + transactions.bin
+const TOTAL_SALES = 968_161;
+let loadedBytes = 0;
+let counterRaf = 0;
+const loadCount = document.getElementById("load-count")!;
+function onBytes(n: number) {
+  loadedBytes += n;
+  if (counterRaf) return;
+  counterRaf = requestAnimationFrame(() => {
+    counterRaf = 0;
+    const t = Math.min(1, loadedBytes / EXPECTED_BYTES);
+    loadCount.textContent = Math.round(t * TOTAL_SALES).toLocaleString();
+  });
+}
+
+async function fetchProgress(url: string): Promise<Uint8Array> {
+  const res = await fetch(url);
+  if (!res.body) {
+    const ab = await res.arrayBuffer();
+    onBytes(ab.byteLength);
+    return new Uint8Array(ab);
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    total += value.length;
+    onBytes(value.length);
+  }
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const c of chunks) {
+    out.set(c, o);
+    o += c.length;
+  }
+  return out;
+}
 
 const [meta, buildings, bin] = await Promise.all([
   fetch("/data/meta.json").then((r) => r.json()),
-  fetch("/data/buildings.json").then((r) => r.json()) as Promise<Building[]>,
-  fetch("/data/transactions.bin").then((r) => r.arrayBuffer()),
+  fetchProgress("/data/buildings.json").then(
+    (u) => JSON.parse(new TextDecoder().decode(u)) as Building[],
+  ),
+  fetchProgress("/data/transactions.bin").then((u) => u.buffer as ArrayBuffer),
 ]);
+if (counterRaf) cancelAnimationFrame(counterRaf); // don't let a stale frame overwrite the final count
+counterRaf = 0;
+loadCount.textContent = TOTAL_SALES.toLocaleString();
 
 const TYPES: Record<string, any> = { Uint8Array, Uint16Array, Uint32Array };
 const col: Record<string, Uint8Array | Uint16Array | Uint32Array> = {};
