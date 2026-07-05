@@ -8,7 +8,7 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
-import { SolidPolygonLayer, PathLayer, TextLayer } from "@deck.gl/layers";
+import { SolidPolygonLayer, PathLayer, TextLayer, ScatterplotLayer } from "@deck.gl/layers";
 import { EVENTS, type Era } from "./events";
 import { initPanel, showPanel, hidePanel } from "./panel";
 import { initSearch, type SearchPick, type AnswerItem, type Suggestion } from "./search";
@@ -31,8 +31,12 @@ type Building = {
   floors: number;
   year: number;
   units: number;
+  mrt: string;
+  mrtM: number;
   footprint: [number, number][] | null;
 };
+
+type Station = { name: string; lat: number; lon: number };
 
 // ------------------------------------------------------------ url state ----
 // Shareable moments: #m=<monthIdx>&c=<now|all>&cam=<lon,lat,zoom,pitch,bearing>
@@ -68,7 +72,7 @@ const mapLoaded = new Promise<void>((res) => map.on("load", () => res()));
 // The two big files stream with byte progress, driving the loader's live
 // sales counter (decoded bytes vs the known decoded total).
 
-const EXPECTED_BYTES = 32_421_971; // decoded bytes of buildings.json + transactions.bin
+const EXPECTED_BYTES = 32_705_445; // decoded bytes of buildings.json + transactions.bin
 let loadedBytes = 0;
 let counterRaf = 0;
 const loadFill = document.getElementById("load-fill")!;
@@ -107,12 +111,13 @@ async function fetchProgress(url: string): Promise<Uint8Array> {
   return out;
 }
 
-const [meta, buildings, bin] = await Promise.all([
+const [meta, buildings, bin, stations] = await Promise.all([
   fetch("/data/meta.json").then((r) => r.json()),
   fetchProgress("/data/buildings.json").then(
     (u) => JSON.parse(new TextDecoder().decode(u)) as Building[],
   ),
   fetchProgress("/data/transactions.bin").then((u) => u.buffer as ArrayBuffer),
+  fetch("/data/stations.json").then((r) => r.json()) as Promise<Station[]>,
 ]);
 if (counterRaf) cancelAnimationFrame(counterRaf);
 counterRaf = 0;
@@ -367,6 +372,48 @@ function makeLayer(month: number) {
   });
 }
 
+// MRT/LRT stations: quiet white dots + names, only past neighborhood zoom
+// where they aid orientation without cluttering the island view.
+const STATION_ZOOM = 12.5;
+function makeStationLayers() {
+  if (map.getZoom() < STATION_ZOOM) return [];
+  return [
+    new ScatterplotLayer<Station>({
+      id: "stations",
+      data: stations,
+      getPosition: (s) => [s.lon, s.lat],
+      radiusUnits: "pixels",
+      getRadius: 3.5,
+      getFillColor: [255, 255, 255, 200],
+      stroked: true,
+      getLineColor: [13, 13, 13, 220],
+      getLineWidth: 1.5,
+      lineWidthUnits: "pixels",
+    }),
+    new TextLayer<Station>({
+      id: "station-labels",
+      data: stations,
+      getPosition: (s) => [s.lon, s.lat],
+      getText: (s) => s.name,
+      getSize: 10.5,
+      getColor: [195, 194, 183, 235],
+      getPixelOffset: [0, -13],
+      fontFamily: "'Helvetica Neue', Arial, sans-serif",
+      fontSettings: { sdf: true },
+      outlineWidth: 3,
+      outlineColor: [13, 13, 13, 210],
+    }),
+  ];
+}
+let stationsShown = false;
+map.on("zoomend", () => {
+  const show = map.getZoom() >= STATION_ZOOM;
+  if (show !== stationsShown) {
+    stationsShown = show;
+    update();
+  }
+});
+
 // Wireframe cage standing in for the selected building: keeps its shape
 // legible while leaving the interior floor plates fully visible.
 function makeShellLayer() {
@@ -551,6 +598,7 @@ function update() {
   overlay.setProps({
     layers: [
       makeLayer(curMonth),
+      ...makeStationLayers(),
       makeShellLayer(),
       ...(makeCutawayLayer() ?? []),
       makeSelectionLayer(),

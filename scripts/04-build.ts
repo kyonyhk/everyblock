@@ -31,6 +31,41 @@ const footprints = new Map<string, [number, number][]>();
   }
 }
 
+// MRT/LRT exits (LTA, d_b39d3a0871985372d7e1637193335da5): nearest-exit
+// distance per building, plus a deduped station list for map display.
+const exits: { name: string; lon: number; lat: number }[] = [];
+{
+  const g = await Bun.file(`${RAW}/mrt-exits.geojson`).json();
+  for (const f of g.features) {
+    const name = String(f.properties.STATION_NA)
+      .replace(/\s+(MRT|LRT)\s+STATION$/i, "")
+      .trim();
+    const [lon, lat] = f.geometry.coordinates;
+    exits.push({ name, lon, lat });
+  }
+}
+const RAD = Math.PI / 180;
+function distM(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const dLat = (bLat - aLat) * RAD;
+  const dLon = (bLon - aLon) * RAD;
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(aLat * RAD) * Math.cos(bLat * RAD) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(s));
+}
+function nearestExit(lat: number, lon: number): { name: string; m: number } {
+  let best = Infinity;
+  let name = "";
+  for (const e of exits) {
+    const d = distM(lat, lon, e.lat, e.lon);
+    if (d < best) {
+      best = d;
+      name = e.name;
+    }
+  }
+  return { name, m: Math.round(best) };
+}
+
 // Building heights and unit counts from HDB property information.
 const propInfo = new Map<string, { floors: number; year: number; units: number }>();
 for (const r of csvToObjects(await Bun.file(`${RAW}/hdb-property-info.csv`).text())) {
@@ -61,6 +96,7 @@ for (const r of rows) {
   if (!info) noHeight++;
   const [block, street] = r.addr.split("|");
   buildingIdx.set(r.addr, buildings.length);
+  const mrt = nearestExit(hit.lat, hit.lon);
   buildings.push({
     block,
     street,
@@ -71,8 +107,29 @@ for (const r of rows) {
     floors: info?.floors ?? 0,
     year: info?.year ?? 0,
     units: info?.units ?? 0,
+    mrt: mrt.name,
+    mrtM: mrt.m,
     footprint: footprints.get(hit.postal) ?? null,
   });
+}
+
+// Station display points: one centroid per station name.
+{
+  const byName = new Map<string, { lat: number; lon: number; n: number }>();
+  for (const e of exits) {
+    let s = byName.get(e.name);
+    if (!s) byName.set(e.name, (s = { lat: 0, lon: 0, n: 0 }));
+    s.lat += e.lat;
+    s.lon += e.lon;
+    s.n++;
+  }
+  const stations = [...byName.entries()].map(([name, s]) => ({
+    name: name.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()),
+    lat: +(s.lat / s.n).toFixed(6),
+    lon: +(s.lon / s.n).toFixed(6),
+  }));
+  await Bun.write(`${OUT}/stations.json`, JSON.stringify(stations));
+  console.log(`stations: ${stations.length} (from ${exits.length} exits)`);
 }
 
 const kept = rows.filter((r) => buildingIdx.get(r.addr)! >= 0);
