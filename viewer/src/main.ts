@@ -453,6 +453,8 @@ function makeMrtLinkLayers() {
       extensions: [new PathStyleExtension({ dash: true })],
       getDashArray: [7, 5],
       dashJustified: true,
+      // Annotation, not geometry: draw over the extruded buildings.
+      parameters: { depthCompare: "always", depthWriteEnabled: false },
     }),
     new TextLayer({
       id: "mrt-link-label",
@@ -466,6 +468,7 @@ function makeMrtLinkLayers() {
       fontSettings: { sdf: true },
       outlineWidth: 3,
       outlineColor: [13, 13, 13, 220],
+      parameters: { depthCompare: "always", depthWriteEnabled: false },
     }),
   ];
 }
