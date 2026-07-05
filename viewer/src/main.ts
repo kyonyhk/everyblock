@@ -19,7 +19,7 @@ import { startLoader } from "./loader";
 
 // The street fly-through starts before anything else so it plays for the
 // whole data download.
-const stopLoader = startLoader();
+const loader = startLoader();
 
 type Building = {
   block: string;
@@ -69,17 +69,15 @@ const mapLoaded = new Promise<void>((res) => map.on("load", () => res()));
 // sales counter (decoded bytes vs the known decoded total).
 
 const EXPECTED_BYTES = 32_421_971; // decoded bytes of buildings.json + transactions.bin
-const TOTAL_SALES = 968_161;
 let loadedBytes = 0;
 let counterRaf = 0;
-const loadCount = document.getElementById("load-count")!;
+const loadFill = document.getElementById("load-fill")!;
 function onBytes(n: number) {
   loadedBytes += n;
   if (counterRaf) return;
   counterRaf = requestAnimationFrame(() => {
     counterRaf = 0;
-    const t = Math.min(1, loadedBytes / EXPECTED_BYTES);
-    loadCount.textContent = Math.round(t * TOTAL_SALES).toLocaleString();
+    loadFill.style.width = `${Math.min(100, (loadedBytes / EXPECTED_BYTES) * 100).toFixed(1)}%`;
   });
 }
 
@@ -116,9 +114,9 @@ const [meta, buildings, bin] = await Promise.all([
   ),
   fetchProgress("/data/transactions.bin").then((u) => u.buffer as ArrayBuffer),
 ]);
-if (counterRaf) cancelAnimationFrame(counterRaf); // don't let a stale frame overwrite the final count
+if (counterRaf) cancelAnimationFrame(counterRaf);
 counterRaf = 0;
-loadCount.textContent = TOTAL_SALES.toLocaleString();
+loadFill.style.width = "100%";
 
 const TYPES: Record<string, any> = { Uint8Array, Uint16Array, Uint32Array };
 const col: Record<string, Uint8Array | Uint16Array | Uint32Array> = {};
@@ -935,5 +933,4 @@ if (hashState.b && byPostal.has(hashState.b)) {
 } else {
   update();
 }
-document.getElementById("loading")!.classList.add("done");
-setTimeout(stopLoader, 700); // free the loader's GL context once faded
+loader.finish(); // crane-shot outro: ascend out of the street, crossfade to the map
