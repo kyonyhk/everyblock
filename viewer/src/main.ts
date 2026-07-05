@@ -15,6 +15,11 @@ import { initSearch, type SearchPick, type AnswerItem, type Suggestion } from ".
 import { parseQuery, hasConstraints, type Parsed } from "./query";
 import { RAMP, LUT } from "./ramp";
 import { DataFilterExtension } from "@deck.gl/extensions";
+import { startLoader } from "./loader";
+
+// The street fly-through starts before anything else so it plays for the
+// whole data download.
+const stopLoader = startLoader();
 
 type Building = {
   block: string;
@@ -931,3 +936,4 @@ if (hashState.b && byPostal.has(hashState.b)) {
   update();
 }
 document.getElementById("loading")!.classList.add("done");
+setTimeout(stopLoader, 700); // free the loader's GL context once faded
