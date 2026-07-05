@@ -145,9 +145,13 @@ const stations = [...byStation.entries()].map(([key, s]) => {
   };
 });
 
-await Bun.write(`${OUT}/stations.json`, JSON.stringify(stations));
+// The code-named exits rows resolve to the same station as their properly
+// named rows — merge duplicates by final name.
+const deduped = [...new Map(stations.map((s) => [s.name, s])).values()];
+
+await Bun.write(`${OUT}/stations.json`, JSON.stringify(deduped));
 console.log(
-  `stations: ${stations.length} · without codes: ${noCodes} · without footprint: ${noRing} · dated: ${datedByWikidata} wikidata + ${datedByLine} line-fallback`,
+  `stations: ${deduped.length} (${stations.length - deduped.length} duplicates merged) · without codes: ${noCodes} · without footprint: ${noRing} · dated: ${datedByWikidata} wikidata + ${datedByLine} line-fallback`,
 );
 if (noCodes) {
   for (const [key, s] of byStation) if (!codesByName.get(key)) console.log("  no codes:", s.name);
