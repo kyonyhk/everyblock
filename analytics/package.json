@@ -1,0 +1,12 @@
+{
+  "name": "everyblock-analytics",
+  "private": true,
+  "description": "Convex backend for everyblock's cookieless, PII-free analytics",
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy"
+  },
+  "dependencies": {
+    "convex": "^1.17.0"
+  }
+}
