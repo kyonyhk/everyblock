@@ -389,7 +389,7 @@ function makeLayer(month: number) {
 // stations, ground plates for underground ones. All gated past
 // neighborhood zoom so the island view stays clean.
 const STATION_ZOOM = 13.2;
-let stationsOn = localStorage.getItem("flatmap-stations") !== "off";
+let stationsOn = localStorage.getItem("everyblock-stations") !== "off";
 const stationMarkers: maplibregl.Marker[] = [];
 for (const s of stations) {
   const el = document.createElement("div");
@@ -1008,7 +1008,7 @@ const stOn = document.getElementById("st-on")!;
 const stOff = document.getElementById("st-off")!;
 function setStations(on: boolean) {
   stationsOn = on;
-  localStorage.setItem("flatmap-stations", on ? "on" : "off");
+  localStorage.setItem("everyblock-stations", on ? "on" : "off");
   stOn.classList.toggle("on", on);
   stOff.classList.toggle("on", !on);
   update();
