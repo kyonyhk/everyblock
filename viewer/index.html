@@ -47,6 +47,7 @@
       color: var(--ink-2);
     }
     #title strong { color: var(--ink); font-weight: 600; }
+    #title-mark { display: none; width: 22px; height: 22px; border-radius: 6px; }
     #search {
       top: 16px;
       right: 16px;
@@ -69,11 +70,14 @@
       top: calc(100% + 8px);
       left: 0;
       right: 0;
-      background: var(--surface);
+      /* More opaque than the chips: a nested backdrop-filter under the
+         search chip renders weakly, so the surface carries the readability. */
+      background: rgba(20, 20, 19, 0.9);
       border: 1px solid var(--hairline);
       border-radius: 16px;
-      backdrop-filter: blur(8px) saturate(1.15);
-      -webkit-backdrop-filter: blur(8px) saturate(1.15);
+      backdrop-filter: blur(22px) saturate(1.2);
+      -webkit-backdrop-filter: blur(22px) saturate(1.2);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
       overflow: hidden;
       padding: 6px;
     }
@@ -444,15 +448,22 @@
       color: var(--ink);
     }
     @media (max-width: 640px) {
-      #title { top: 12px; left: 12px; padding: 10px 15px; }
-      #title span { display: none; }
+      /* Header: a compact logo mark on the left, search fills the rest of
+         the row. The full "everyblock" wordmark is too wide next to search
+         on a phone, so it collapses to the mark. */
+      #title { top: 12px; left: 12px; padding: 8px 11px; }
+      #title strong, #title span { display: none; }
+      #title-mark { display: block; }
       #search {
         top: 12px;
-        left: 104px;
+        left: 66px;
         right: 12px;
         width: auto;
-        padding: 10px 13px;
+        padding: 11px 14px;
       }
+      /* 16px stops iOS Safari from auto-zooming the page on focus (which,
+         with the map owning pinch gestures, the user can't undo). */
+      #search-input { font-size: 16px; }
       #legend, #compass { display: none; }
       #filter-chip {
         top: 62px;
@@ -474,13 +485,29 @@
         width: calc(100vw - 24px);
         padding: 6px 14px 6px 6px;
       }
+      /* Block detail as a bottom sheet: the map (with the highlighted block)
+         stays visible above it, instead of a full-screen takeover. */
       #panel {
-        top: 60px;
-        left: 12px;
-        right: 12px;
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
         width: auto;
-        max-height: calc(100dvh - 168px);
+        max-width: none;
+        max-height: 72dvh;
+        border-radius: 20px 20px 0 0;
+        padding: 6px 16px calc(18px + env(safe-area-inset-bottom));
       }
+      #panel::before {
+        content: "";
+        display: block;
+        width: 40px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.28);
+        margin: 2px auto 12px;
+      }
+      #panel-close { top: 16px; right: 14px; }
       #toast { bottom: 142px; }
     }
     #loading {
@@ -570,7 +597,7 @@
 </head>
 <body>
   <div id="map"></div>
-  <div id="title" class="chip"><strong>everyblock</strong><span>check any block before you buy or sell</span></div>
+  <div id="title" class="chip"><img id="title-mark" src="/favicon.svg" alt="everyblock" /><strong>everyblock</strong><span>check any block before you buy or sell</span></div>
   <div id="search" class="chip">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#898781" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/></svg>
     <input id="search-input" type="text" placeholder="Search, or ask about prices" autocomplete="off" spellcheck="false" />
