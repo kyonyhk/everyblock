@@ -143,22 +143,29 @@
       right: 16px;
       width: min(300px, calc(100vw - 32px));
       max-height: calc(100% - 180px);
-      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       background: var(--surface);
       border: 1px solid var(--hairline);
       border-radius: 18px;
       backdrop-filter: blur(8px) saturate(1.15);
       -webkit-backdrop-filter: blur(8px) saturate(1.15);
-      padding: 16px;
       z-index: 11;
       font-size: 12px;
-      scrollbar-width: thin;
-      scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
       transform: translateY(0);
       opacity: 1;
       transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease;
       will-change: transform, opacity;
     }
+    #panel-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+    }
+    #panel-grab { display: none; }
     /* Hidden state animates rather than display:none, so entry/exit slide.
        Desktop card rises into place; mobile sheet slides fully up from below
        (overridden in the media query). */
@@ -232,12 +239,12 @@
       scrollbar-width: thin;
       scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
     }
-    .txlist::-webkit-scrollbar, #panel::-webkit-scrollbar { width: 5px; }
-    .txlist::-webkit-scrollbar-thumb, #panel::-webkit-scrollbar-thumb {
+    .txlist::-webkit-scrollbar, #panel-scroll::-webkit-scrollbar { width: 5px; }
+    .txlist::-webkit-scrollbar-thumb, #panel-scroll::-webkit-scrollbar-thumb {
       background: rgba(255, 255, 255, 0.22);
       border-radius: 3px;
     }
-    .txlist::-webkit-scrollbar-track, #panel::-webkit-scrollbar-track { background: transparent; }
+    .txlist::-webkit-scrollbar-track, #panel-scroll::-webkit-scrollbar-track { background: transparent; }
     .tx {
       display: grid;
       grid-template-columns: 52px 32px 40px 36px 1fr;
@@ -473,8 +480,12 @@
         padding: 11px 14px;
       }
       /* 16px stops iOS Safari from auto-zooming the page on focus (which,
-         with the map owning pinch gestures, the user can't undo). */
+         with the map owning pinch gestures, the user can't undo). It's a
+         hard floor, so the dropdown rows are sized up to match it. */
       #search-input { font-size: 16px; }
+      #search-results .hit { font-size: 13.5px; }
+      #search-results .hit-main span { font-size: 11px; }
+      .hit-badge { font-size: 10px; }
       #legend, #compass { display: none; }
       #filter-chip {
         top: 62px;
@@ -496,8 +507,9 @@
         width: calc(100vw - 24px);
         padding: 6px 14px 6px 6px;
       }
-      /* Block detail as a bottom sheet: the map (with the highlighted block)
-         stays visible above it, instead of a full-screen takeover. */
+      /* Block detail is a draggable bottom sheet: opens as a peek (~42dvh
+         visible) showing block, fair range and MRT with the map above it;
+         drag or tap the handle to expand to the full breakdown. */
       #panel {
         top: auto;
         bottom: 0;
@@ -505,22 +517,33 @@
         right: 0;
         width: auto;
         max-width: none;
-        max-height: 72dvh;
+        height: 88dvh;
+        max-height: none;
         border-radius: 20px 20px 0 0;
-        padding: 6px 16px calc(18px + env(safe-area-inset-bottom));
+        transform: translateY(46dvh); /* peek */
       }
-      /* The sheet slides fully off the bottom, no fade. */
+      #panel.expanded { transform: translateY(0); }
       #panel.hidden { opacity: 1; transform: translateY(100%); }
-      #panel::before {
+      #panel.dragging { transition: none; }
+      #panel-scroll { padding: 0 16px calc(18px + env(safe-area-inset-bottom)); }
+      /* The handle: a full-width drag target with a centered grabber bar. */
+      #panel-grab {
+        display: block;
+        flex: none;
+        height: 26px;
+        touch-action: none;
+        cursor: grab;
+      }
+      #panel-grab::before {
         content: "";
         display: block;
         width: 40px;
         height: 4px;
         border-radius: 2px;
-        background: rgba(255, 255, 255, 0.28);
-        margin: 2px auto 12px;
+        background: rgba(255, 255, 255, 0.3);
+        margin: 9px auto 0;
       }
-      #panel-close { top: 16px; right: 14px; }
+      #panel-close { top: 18px; right: 14px; }
       #toast { bottom: 142px; }
     }
     #loading {

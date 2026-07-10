@@ -186,25 +186,33 @@ export function showPanel(idx: number) {
       <strong>${sgd(col.price[i])}</strong>
     </div>`).join("");
 
+  // A pinned handle + close button, then a scrollable body. On mobile the
+  // handle drags the sheet between peek and expanded; the body scrolls
+  // independently, so the header stays put while the floor list scrolls.
   el.innerHTML = `
     <button id="panel-close" aria-label="Close">×</button>
-    <div class="panel-head">
-      <strong>Blk ${b.block}</strong> ${title(b.street)}
-    </div>
-    <div class="panel-sub muted">
-      ${title(enums.towns[b.town])} · ${b.floors || "?"} floors · ${b.units || "?"} flats
-      ${leaseLeft !== null ? `<br>99-yr lease from ${leaseStart} · <strong class="ink">${leaseLeft} yrs left</strong>` : ""}
-      ${b.mrt ? `<br>${b.mrtM >= 1000 ? (b.mrtM / 1000).toFixed(1) + " km" : b.mrtM + " m"} straight-line to ${b.mrt} MRT` : ""}
-    </div>
-    ${fairSection(idx)}
-    ${sparkline(idx)}
-    ${floorSection(idx)}
-    <div class="panel-txhead muted" style="margin-top:10px">${txs.length.toLocaleString()} resales since 1990</div>
-    <div class="txlist">${rows || `<div class="muted">no recorded resales</div>`}</div>
-    <button id="panel-share">Share</button>`;
+    <div id="panel-grab" aria-hidden="true"></div>
+    <div id="panel-scroll">
+      <div class="panel-head">
+        <strong>Blk ${b.block}</strong> ${title(b.street)}
+      </div>
+      <div class="panel-sub muted">
+        ${title(enums.towns[b.town])} · ${b.floors || "?"} floors · ${b.units || "?"} flats
+        ${leaseLeft !== null ? `<br>99-yr lease from ${leaseStart} · <strong class="ink">${leaseLeft} yrs left</strong>` : ""}
+        ${b.mrt ? `<br>${b.mrtM >= 1000 ? (b.mrtM / 1000).toFixed(1) + " km" : b.mrtM + " m"} straight-line to ${b.mrt} MRT` : ""}
+      </div>
+      ${fairSection(idx)}
+      ${sparkline(idx)}
+      ${floorSection(idx)}
+      <div class="panel-txhead muted" style="margin-top:10px">${txs.length.toLocaleString()} resales since 1990</div>
+      <div class="txlist">${rows || `<div class="muted">no recorded resales</div>`}</div>
+      <button id="panel-share">Share</button>
+    </div>`;
 
   if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
-  el.classList.remove("hidden");
+  el.classList.remove("hidden", "expanded"); // open as a peek
+  el.style.transform = "";
+  attachSheetDrag(document.getElementById("panel-grab")!);
   document.getElementById("panel-close")!.addEventListener("click", ctx.onClose);
   document.getElementById("panel-share")!.addEventListener("click", async () => {
     track("share");
@@ -223,6 +231,52 @@ export function showPanel(idx: number) {
     await navigator.clipboard.writeText(location.href);
     ctx.toast(`Link to Blk ${b.block} copied`);
   });
+}
+
+// Draggable bottom sheet (mobile only). The handle drags the sheet between
+// peek and expanded; a tap toggles; a hard drag down closes. translateY is
+// driven inline while dragging, then handed back to the CSS classes (which
+// carry the transition) on release.
+let lastDragT = 0;
+function attachSheetDrag(grab: HTMLElement) {
+  if (!matchMedia("(max-width: 640px)").matches) return;
+  const peekT = () => Math.round(innerHeight * 0.46);
+  const panelH = () => el.getBoundingClientRect().height || innerHeight * 0.88;
+  let startY = 0, startT = 0, dragging = false, moved = false;
+
+  grab.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    moved = false;
+    startY = e.clientY;
+    startT = el.classList.contains("expanded") ? 0 : peekT();
+    lastDragT = startT;
+    el.classList.add("dragging");
+    grab.setPointerCapture(e.pointerId);
+  });
+  grab.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const dy = e.clientY - startY;
+    if (Math.abs(dy) > 4) moved = true;
+    lastDragT = Math.max(0, Math.min(panelH(), startT + dy));
+    el.style.transform = `translateY(${lastDragT}px)`;
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove("dragging");
+    el.style.transform = "";
+    if (!moved) {
+      el.classList.toggle("expanded"); // tap toggles peek/expanded
+      return;
+    }
+    const pk = peekT();
+    const h = panelH();
+    if (lastDragT < pk * 0.5) el.classList.add("expanded");
+    else if (lastDragT < pk + (h - pk) * 0.45) el.classList.remove("expanded");
+    else ctx.onClose(); // dragged well down: close
+  };
+  grab.addEventListener("pointerup", end);
+  grab.addEventListener("pointercancel", end);
 }
 
 let clearTimer: ReturnType<typeof setTimeout> | null = null;

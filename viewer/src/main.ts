@@ -692,15 +692,15 @@ function select(idx: number | null, fly = false) {
     showPanel(idx);
     if (fly) {
       const b = buildings[idx];
-      // On mobile the panel is a bottom sheet covering ~70% of the height,
-      // so bias the camera upward to keep the block in the visible strip.
+      // On mobile the sheet opens as a peek covering ~42% of the height, so
+      // bias the camera upward to keep the block in the visible strip above.
       const mobile = matchMedia("(max-width: 640px)").matches;
       map.flyTo({
         center: [b.lon, b.lat],
         zoom: Math.max(map.getZoom(), 15.5),
         pitch: 60,
         duration: 2200,
-        padding: mobile ? { top: 0, bottom: innerHeight * 0.6, left: 0, right: 0 } : undefined,
+        padding: mobile ? { top: 0, bottom: innerHeight * 0.42, left: 0, right: 0 } : undefined,
       });
     }
   }
