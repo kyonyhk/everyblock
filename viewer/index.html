@@ -141,7 +141,7 @@
       position: absolute;
       top: 64px;
       right: 16px;
-      width: min(300px, calc(100vw - 32px));
+      width: min(332px, calc(100vw - 32px));
       max-height: calc(100% - 180px);
       display: flex;
       flex-direction: column;
@@ -195,7 +195,60 @@
     }
     .panel-head { font-size: 14px; padding-right: 28px; }
     .panel-head strong { font-weight: 650; }
-    .panel-sub { font-size: 11px; margin: 4px 0 12px; line-height: 1.5; }
+    .panel-sub { font-size: 11px; margin: 3px 0 0; line-height: 1.5; }
+    /* Option-A hero: last sold big, fair range with tucked-away method, trend */
+    .hero { margin: 12px 0 2px; }
+    .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--ink-muted); font-weight: 650; }
+    .hero-big { font-size: 25px; font-weight: 700; letter-spacing: -0.6px; line-height: 1.05; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
+    .hero-mid { font-size: 17px; font-weight: 650; color: var(--ink); }
+    .hero-sub { font-size: 11px; color: var(--ink-muted); font-variant-numeric: tabular-nums; margin-top: 3px; }
+    .hero-fair { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; margin-top: 13px; }
+    .hero-fair-main { flex: 1; min-width: 0; }
+    .hero-fairval { font-size: 16px; font-weight: 650; letter-spacing: -0.2px; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
+    .trend {
+      display: inline-flex; align-items: center; gap: 5px; flex: none;
+      font-size: 12px; font-weight: 600; color: #6da7ec;
+      background: rgba(109, 167, 236, 0.16); border-radius: 999px; padding: 4px 10px;
+      font-variant-numeric: tabular-nums;
+    }
+    .trend .since { color: var(--ink-muted); font-weight: 500; }
+    .funds {
+      display: flex; gap: 6px; margin-top: 14px; padding-top: 12px;
+      border-top: 1px solid var(--hairline);
+    }
+    .funds > div { flex: 1; min-width: 0; }
+    .funds .fv { font-size: 12.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .funds .fk {
+      font-size: 9px; color: var(--ink-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .more-hint {
+      display: none; width: 100%; align-items: center; justify-content: center; gap: 6px;
+      background: none; border: none; cursor: pointer;
+      color: #6da7ec; font-family: inherit; font-size: 11px; margin-top: 12px; padding: 7px;
+    }
+    .more-hint svg { display: block; }
+    .info-wrap { position: relative; display: inline-flex; margin-left: 5px; vertical-align: middle; }
+    .info {
+      width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--hairline);
+      background: none; color: var(--ink-muted); cursor: pointer; padding: 0;
+      font-size: 9px; font-weight: 700; line-height: 1; font-family: Georgia, "Times New Roman", serif; font-style: italic;
+      display: grid; place-items: center;
+    }
+    .info-pop {
+      position: absolute; bottom: calc(100% + 7px); left: -8px; width: 210px;
+      background: rgba(20, 20, 19, 0.97); border: 1px solid var(--hairline); border-radius: 10px;
+      backdrop-filter: blur(12px); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+      padding: 9px 11px; font-size: 10.5px; line-height: 1.45; color: var(--ink-2);
+      text-transform: none; letter-spacing: 0; font-weight: 400;
+      opacity: 0; visibility: hidden; transform: translateY(3px);
+      transition: opacity 0.16s, transform 0.16s, visibility 0s linear 0.16s;
+      z-index: 3; pointer-events: none;
+    }
+    .info-wrap:hover .info-pop, .info-wrap.open .info-pop {
+      opacity: 1; visibility: visible; transform: translateY(0);
+      transition: opacity 0.16s, transform 0.16s;
+    }
     .spark { display: block; width: 100%; margin-top: 2px; }
     .spark-empty { font-size: 11px; margin: 12px 0; }
     .spark-ends {
@@ -531,6 +584,9 @@
       #panel.expanded { transform: translateY(0); }
       #panel.hidden { opacity: 1; transform: translateY(100%); }
       #panel.dragging { transition: none; }
+      /* The expand hint shows only in the peek state. */
+      .more-hint { display: flex; }
+      #panel.expanded .more-hint { display: none; }
       #panel-scroll { padding: 0 16px calc(18px + env(safe-area-inset-bottom)); }
       /* The handle: a full-width drag target with a centered grabber bar. */
       #panel-grab {

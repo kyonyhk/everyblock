@@ -70,14 +70,18 @@ function sparkline(idx: number): string {
 // percentile of the past year's estate sales of that type (S$/m²),
 // adjusted by the block's own all-time premium vs its town (clamped, and
 // only applied when both sides have enough data), sized by the block's
-// typical unit. Receipts stated inline; explicitly an estimate.
-function fairSection(idx: number): string {
-  const { col, buildings, maxMonth, enums } = ctx;
+// typical unit. computeFair returns structured rows (dominant type first)
+// so the peek can show the main type and the expanded view can list all.
+type FairRow = {
+  t: number; lo: number; hi: number; sqm: number;
+  n: number; similar: boolean; blkCount: number;
+};
+function computeFair(idx: number): FairRow[] {
+  const { col, buildings, maxMonth, txOffsets, txIndex } = ctx;
   const b = buildings[idx];
   const N = col.price.length;
   const T = FLAT_SHORT.length;
-  const { txOffsets, txIndex } = ctx;
-  if (txOffsets[idx] === txOffsets[idx + 1]) return "";
+  if (txOffsets[idx] === txOffsets[idx + 1]) return [];
   const blkLease = col.leaseStart[txIndex[txOffsets[idx]]];
   const est12: number[][] = Array.from({ length: T }, () => []); // similar lease vintage
   const est12All: number[][] = Array.from({ length: T }, () => []); // any vintage (fallback)
@@ -104,7 +108,7 @@ function fairSection(idx: number): string {
       blkSizes[t].push(col.sqmX10[i] / 10);
     }
   }
-  const rows: string[] = [];
+  const out: FairRow[] = [];
   for (let t = 0; t < T; t++) {
     const similar = est12[t].length >= 15;
     const pool = similar ? est12[t] : est12All[t];
@@ -118,22 +122,45 @@ function fairSection(idx: number): string {
     }
     const sizes = blkSizes[t].sort((a, z) => a - z);
     const sqm = sizes[sizes.length >> 1];
-    const lo = q(0.25) * factor * sqm;
-    const hi = q(0.75) * factor * sqm;
-    const fp = Math.round((factor - 1) * 100);
-    rows.push(`
-      <div class="fair-row">
-        <strong>${FLAT_SHORT[t]}</strong>
-        <span class="fair-range">${sgd(lo)} – ${sgd(hi)}</span>
-        <span class="muted">~${Math.round(sqm)} m²</span>
-      </div>
-      <div class="fair-note muted">${arr.length} ${similar ? "similar-age " : ""}${title(enums.towns[b.town])} ${FLAT_SHORT[t]} sales, past 12 mo${fp ? ` · this block ${fp > 0 ? "+" : ""}${fp}% historically` : ""}</div>`);
+    out.push({ t, lo: q(0.25) * factor * sqm, hi: q(0.75) * factor * sqm, sqm, n: arr.length, similar, blkCount: blkAll[t].c });
   }
-  if (!rows.length) return "";
+  out.sort((a, z) => z.blkCount - a.blkCount); // dominant type first
+  return out;
+}
+
+// Methodology line for the fair range, revealed behind the info affordance.
+function fairMethod(f: FairRow, town: string): string {
+  return `Estimated from ${f.n} ${f.similar ? "similar-age " : ""}${town} ${FLAT_SHORT[f.t]} sales in the past 12 months. Not a valuation.`;
+}
+
+// Expanded view: fair range for every flat type in the block.
+function renderFairRows(fair: FairRow[], town: string): string {
+  if (!fair.length) return "";
+  const rows = fair.map((f) => `
+    <div class="fair-row">
+      <strong>${FLAT_SHORT[f.t]}</strong>
+      <span class="fair-range">${sgd(f.lo)} – ${sgd(f.hi)}</span>
+      <span class="muted">~${Math.round(f.sqm)} m²</span>
+    </div>`).join("");
   return `
-    <div class="panel-txhead muted">fair range today</div>
-    ${rows.join("")}
-    <div class="fair-disc muted">an estimate from registered sales, not a valuation</div>`;
+    <div class="panel-txhead muted">fair range by flat type</div>
+    ${rows}
+    <div class="fair-disc muted">estimated from registered sales of similar-age ${town} flats, past 12 months · not a valuation</div>`;
+}
+
+// Trailing-12-month change in S$/m² vs the prior 12 months. Only returned
+// when both windows have enough of the block's own sales to mean something.
+function trend12(idx: number): number | null {
+  const { psmSum, cnt, M } = ctx;
+  const win = (a: number, b: number) => {
+    let s = 0, c = 0;
+    for (let m = Math.max(0, a); m < b; m++) { s += psmSum[idx * M + m]; c += cnt[idx * M + m]; }
+    return { s, c };
+  };
+  const recent = win(M - 12, M);
+  const prior = win(M - 24, M - 12);
+  if (recent.c >= 3 && prior.c >= 3) return (recent.s / recent.c / (prior.s / prior.c) - 1) * 100;
+  return null;
 }
 
 // Per-storey-band S$/m² bars — mirrors the 3D floor plates so the floor
@@ -186,33 +213,73 @@ export function showPanel(idx: number) {
       <strong>${sgd(col.price[i])}</strong>
     </div>`).join("");
 
-  // A pinned handle + close button, then a scrollable body. On mobile the
-  // handle drags the sheet between peek and expanded; the body scrolls
-  // independently, so the header stays put while the floor list scrolls.
+  const fair = computeFair(idx);
+  const dom = fair[0] || null;
+  const town = title(enums.towns[b.town]);
+  const tr = trend12(idx);
+  const last = txs.length ? txs[0] : null;
+  const domType = dom ? FLAT_SHORT[dom.t] : last !== null ? FLAT_SHORT[col.flatType[last]] : "";
+
+  // Structure (Option A): a pinned handle + close, then the decision at the
+  // top — last real sale as the hero, fair range with a tucked-away
+  // methodology, a recent trend chip, and the fundamentals — then the
+  // evidence (chart, all types, floors, ledger) below the peek fold.
   el.innerHTML = `
     <button id="panel-close" aria-label="Close">×</button>
     <div id="panel-grab" aria-hidden="true"></div>
     <div id="panel-scroll">
-      <div class="panel-head">
-        <strong>Blk ${b.block}</strong> ${title(b.street)}
+      <div class="panel-head"><strong>Blk ${b.block}</strong> ${title(b.street)}</div>
+      <div class="panel-sub muted">${town}${domType ? ` · ${domType}` : ""} · ${b.floors || "?"} floors</div>
+
+      <div class="hero">
+        <div class="hero-sold">
+          ${last !== null
+            ? `<div class="lbl">Last sold</div>
+               <div class="hero-big num">${sgd(col.price[last])}</div>
+               <div class="hero-sub num">${monthName(col.month[last])} · ~F${col.storey[last]} · ${Math.round(col.sqmX10[last] / 10)} m²</div>`
+            : `<div class="hero-mid">Not yet resold</div>
+               <div class="hero-sub muted">no registered resale here yet</div>`}
+        </div>
+        ${dom ? `
+        <div class="hero-fair">
+          <div class="hero-fair-main">
+            <div class="lbl">Fair range now<span class="info-wrap"><button class="info" type="button" aria-label="How this is estimated">i</button><span class="info-pop">${fairMethod(dom, town)}</span></span></div>
+            <div class="hero-fairval num">${sgd(dom.lo)} – ${sgd(dom.hi)}</div>
+          </div>
+          ${tr !== null ? `<div class="trend" title="past 12 months vs the year before">${tr >= 0 ? "▲" : "▼"} ${Math.abs(tr).toFixed(1)}% <span class="since">12 mo</span></div>` : ""}
+        </div>` : ""}
       </div>
-      <div class="panel-sub muted">
-        ${title(enums.towns[b.town])} · ${b.floors || "?"} floors · ${b.units || "?"} flats
-        ${leaseLeft !== null ? `<br>99-yr lease from ${leaseStart} · <strong class="ink">${leaseLeft} yrs left</strong>` : ""}
-        ${b.mrt ? `<br>${b.mrtM >= 1000 ? (b.mrtM / 1000).toFixed(1) + " km" : b.mrtM + " m"} straight-line to ${b.mrt} MRT` : ""}
+
+      <div class="funds">
+        ${leaseLeft !== null ? `<div><div class="fv num">${leaseLeft} yrs</div><div class="fk">lease left</div></div>` : ""}
+        ${b.mrt ? `<div><div class="fv num">${b.mrtM >= 1000 ? (b.mrtM / 1000).toFixed(1) + " km" : b.mrtM + " m"}</div><div class="fk" title="${b.mrt} MRT">${b.mrt} MRT</div></div>` : ""}
+        ${dom ? `<div><div class="fv num">~${Math.round(dom.sqm)} m²</div><div class="fk">typical unit</div></div>` : ""}
       </div>
-      ${fairSection(idx)}
-      ${sparkline(idx)}
-      ${floorSection(idx)}
-      <div class="panel-txhead muted" style="margin-top:10px">${txs.length.toLocaleString()} resales since 1990</div>
-      <div class="txlist">${rows || `<div class="muted">no recorded resales</div>`}</div>
-      <button id="panel-share">Share</button>
+
+      <button class="more-hint" id="panel-more" type="button">
+        ${last !== null ? `Floor prices &amp; ${txs.length} past sales` : "Lease &amp; location"}
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 15l6-6 6 6"/></svg>
+      </button>
+
+      <div class="evidence">
+        ${sparkline(idx)}
+        ${renderFairRows(fair, town)}
+        ${floorSection(idx)}
+        <div class="panel-txhead muted" style="margin-top:10px">${txs.length.toLocaleString()} resales since 1990</div>
+        <div class="txlist">${rows || `<div class="muted">no recorded resales</div>`}</div>
+        <button id="panel-share">Share</button>
+      </div>
     </div>`;
 
   if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
   el.classList.remove("hidden", "expanded"); // open as a peek
   el.style.transform = "";
   attachSheetDrag(document.getElementById("panel-grab")!);
+  el.querySelector(".info")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).parentElement!.classList.toggle("open");
+  });
+  document.getElementById("panel-more")!.addEventListener("click", () => el.classList.add("expanded"));
   document.getElementById("panel-close")!.addEventListener("click", ctx.onClose);
   document.getElementById("panel-share")!.addEventListener("click", async () => {
     track("share");
