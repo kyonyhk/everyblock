@@ -155,7 +155,8 @@
       font-size: 12px;
       transform: translateY(0);
       opacity: 1;
-      transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease;
+      visibility: visible;
+      transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease, visibility 0s;
       will-change: transform, opacity;
     }
     #panel-scroll {
@@ -172,6 +173,8 @@
     #panel.hidden {
       opacity: 0;
       transform: translateY(24px);
+      visibility: hidden;
+      transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.28s ease, visibility 0s linear 0.42s;
       pointer-events: none;
     }
     #panel .muted { color: var(--ink-muted); }
@@ -469,7 +472,8 @@
       /* Header: a compact logo mark on the left, search fills the rest of
          the row. The full "everyblock" wordmark is too wide next to search
          on a phone, so it collapses to the mark. */
-      #title { top: 12px; left: 12px; padding: 8px 11px; }
+      /* Logo chip and search bar share one height so they line up. */
+      #title { top: 12px; left: 12px; height: 44px; padding: 0 13px; box-sizing: border-box; }
       #title strong, #title span { display: none; }
       #title-mark { display: block; }
       #search {
@@ -477,7 +481,9 @@
         left: 66px;
         right: 12px;
         width: auto;
-        padding: 11px 14px;
+        height: 44px;
+        padding: 0 14px;
+        box-sizing: border-box;
       }
       /* 16px stops iOS Safari from auto-zooming the page on focus (which,
          with the map owning pinch gestures, the user can't undo). It's a
