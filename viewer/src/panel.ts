@@ -203,6 +203,7 @@ export function showPanel(idx: number) {
     <div class="txlist">${rows || `<div class="muted">no recorded resales</div>`}</div>
     <button id="panel-share">Share</button>`;
 
+  if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
   el.classList.remove("hidden");
   document.getElementById("panel-close")!.addEventListener("click", ctx.onClose);
   document.getElementById("panel-share")!.addEventListener("click", async () => {
@@ -224,7 +225,13 @@ export function showPanel(idx: number) {
   });
 }
 
+let clearTimer: ReturnType<typeof setTimeout> | null = null;
 export function hidePanel() {
   el.classList.add("hidden");
-  el.innerHTML = "";
+  // Keep the content mounted through the slide-out, then clear it once the
+  // panel has animated off screen. A new showPanel cancels the pending clear.
+  if (clearTimer) clearTimeout(clearTimer);
+  clearTimer = setTimeout(() => {
+    if (el.classList.contains("hidden")) el.innerHTML = "";
+  }, 450);
 }
