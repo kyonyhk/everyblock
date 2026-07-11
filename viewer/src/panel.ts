@@ -225,10 +225,15 @@ export function showPanel(idx: number) {
   // methodology, a recent trend chip, and the fundamentals — then the
   // evidence (chart, all types, floors, ledger) below the peek fold.
   el.innerHTML = `
-    <button id="panel-close" aria-label="Close">×</button>
     <div id="panel-grab" aria-hidden="true"></div>
-    <div id="panel-scroll">
+    <div id="panel-header">
       <div class="panel-head"><strong>Blk ${b.block}</strong> ${title(b.street)}</div>
+      <button id="panel-share" class="pbtn" type="button" aria-label="Share this block">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M4 13v6a2 2 0 002 2h12a2 2 0 002-2v-6"/></svg>
+      </button>
+      <button id="panel-close" class="pbtn" type="button" aria-label="Close">×</button>
+    </div>
+    <div id="panel-scroll">
       <div class="panel-sub muted">${town}${domType ? ` · ${domType}` : ""} · ${b.floors || "?"} floors</div>
 
       <div class="hero">
@@ -267,7 +272,6 @@ export function showPanel(idx: number) {
         ${floorSection(idx)}
         <div class="panel-txhead muted" style="margin-top:10px">${txs.length.toLocaleString()} resales since 1990</div>
         <div class="txlist">${rows || `<div class="muted">no recorded resales</div>`}</div>
-        <button id="panel-share">Share</button>
       </div>
     </div>`;
 

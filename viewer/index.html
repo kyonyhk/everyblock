@@ -6,12 +6,19 @@
   <title>everyblock — check any block before you buy or sell</title>
   <meta name="description" content="What is any HDB block really worth? Every registered resale since 1990, at block and floor level, on a 3D map of Singapore. No listings, no ads." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#0d0d0d" />
   <meta property="og:title" content="everyblock — check any block before you buy or sell" />
   <meta property="og:description" content="What is any HDB block really worth? Every registered resale since 1990, block by block, floor by floor, on a 3D map of Singapore." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://everyblock.sg/" />
   <meta property="og:image" content="https://everyblock.sg/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://everyblock.sg/og.png" />
   <style>
     :root {
       --surface: rgba(26, 26, 25, 0.62);
@@ -162,7 +169,7 @@
     #panel-scroll {
       flex: 1;
       overflow-y: auto;
-      padding: 16px;
+      padding: 0 16px 16px;
       scrollbar-width: thin;
       scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
     }
@@ -179,22 +186,33 @@
     }
     #panel .muted { color: var(--ink-muted); }
     #panel .ink { color: var(--ink); }
-    #panel-close {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 26px;
-      height: 26px;
+    /* Pinned header band: block name + actions, above the scroll area so
+       nothing scrolls behind the buttons. */
+    #panel-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: none;
+      padding: 12px 14px 10px 16px;
+    }
+    .panel-head { flex: 1; min-width: 0; font-size: 14px; }
+    .panel-head strong { font-weight: 650; }
+    .pbtn {
+      flex: none;
+      width: 30px;
+      height: 30px;
       border-radius: 50%;
       border: 1px solid var(--hairline);
-      background: rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.05);
       color: var(--ink-2);
-      font-size: 14px;
+      display: grid;
+      place-items: center;
       cursor: pointer;
-      line-height: 1;
+      padding: 0;
     }
-    .panel-head { font-size: 14px; padding-right: 28px; }
-    .panel-head strong { font-weight: 650; }
+    .pbtn:hover { background: rgba(255, 255, 255, 0.11); color: var(--ink); }
+    #panel-close { font-size: 16px; line-height: 1; }
+    #panel-share svg { width: 15px; height: 15px; display: block; }
     .panel-sub { font-size: 11px; margin: 3px 0 0; line-height: 1.5; }
     /* Option-A hero: last sold big, fair range with tucked-away method, trend */
     .hero { margin: 12px 0 2px; }
@@ -312,19 +330,6 @@
       white-space: nowrap;
     }
     .tx span:nth-child(2), .tx span:nth-child(3), .tx strong { text-align: right; }
-    #panel-share {
-      margin-top: 12px;
-      width: 100%;
-      padding: 8px 0;
-      border-radius: 999px;
-      border: 1px solid var(--hairline);
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--ink-2);
-      font-size: 11px;
-      font-family: inherit;
-      cursor: pointer;
-    }
-    #panel-share:hover { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
     #filter-chip {
       bottom: 130px;
       left: 16px;
@@ -609,7 +614,6 @@
         background: rgba(255, 255, 255, 0.3);
         margin: 9px auto 0;
       }
-      #panel-close { top: 18px; right: 14px; }
       #toast { bottom: 142px; }
     }
     #loading {
