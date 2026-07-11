@@ -142,10 +142,10 @@ function renderFairRows(fair: FairRow[], town: string): string {
       <span class="fair-range">${sgd(f.lo)} – ${sgd(f.hi)}</span>
       <span class="muted">~${Math.round(f.sqm)} m²</span>
     </div>`).join("");
+  const method = `Estimated from registered sales of similar-age ${town} flats in the past 12 months. Not a valuation.`;
   return `
-    <div class="panel-txhead muted">fair range by flat type</div>
-    ${rows}
-    <div class="fair-disc muted">estimated from registered sales of similar-age ${town} flats, past 12 months · not a valuation</div>`;
+    <div class="panel-txhead muted">fair range by flat type<span class="info-wrap"><button class="info" type="button" aria-label="How this is estimated">i</button><span class="info-pop">${method}</span></span></div>
+    ${rows}`;
 }
 
 // Trailing-12-month change in S$/m² vs the prior 12 months. Only returned
@@ -274,11 +274,24 @@ export function showPanel(idx: number) {
   if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
   el.classList.remove("hidden", "expanded"); // open as a peek
   el.style.transform = "";
+  // Fit the peek to the summary so the fold lands just above the evidence:
+  // the chart no longer peeks, and (with scroll disabled until expanded) the
+  // only way to see more is the expand hint or handle.
+  if (matchMedia("(max-width: 640px)").matches) {
+    const ev = el.querySelector(".evidence") as HTMLElement | null;
+    if (ev) {
+      const ph = el.getBoundingClientRect().height;
+      const fold = ev.getBoundingClientRect().top - el.getBoundingClientRect().top - 4;
+      el.style.setProperty("--peek-y", `${Math.max(0, ph - fold)}px`);
+    }
+  }
   attachSheetDrag(document.getElementById("panel-grab")!);
-  el.querySelector(".info")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    (e.currentTarget as HTMLElement).parentElement!.classList.toggle("open");
-  });
+  el.querySelectorAll(".info").forEach((btn) =>
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      (e.currentTarget as HTMLElement).parentElement!.classList.toggle("open");
+    }),
+  );
   document.getElementById("panel-more")!.addEventListener("click", () => el.classList.add("expanded"));
   document.getElementById("panel-close")!.addEventListener("click", ctx.onClose);
   document.getElementById("panel-share")!.addEventListener("click", async () => {
@@ -307,7 +320,7 @@ export function showPanel(idx: number) {
 let lastDragT = 0;
 function attachSheetDrag(grab: HTMLElement) {
   if (!matchMedia("(max-width: 640px)").matches) return;
-  const peekT = () => Math.round(innerHeight * 0.46);
+  const peekT = () => parseFloat(getComputedStyle(el).getPropertyValue("--peek-y")) || Math.round(innerHeight * 0.46);
   const panelH = () => el.getBoundingClientRect().height || innerHeight * 0.88;
   let startY = 0, startT = 0, dragging = false, moved = false;
 

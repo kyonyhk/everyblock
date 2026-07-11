@@ -579,11 +579,15 @@
         height: 88dvh;
         max-height: none;
         border-radius: 20px 20px 0 0;
-        transform: translateY(46dvh); /* peek */
+        transform: translateY(var(--peek-y, 46dvh)); /* peek, fitted per block */
       }
       #panel.expanded { transform: translateY(0); }
       #panel.hidden { opacity: 1; transform: translateY(100%); }
       #panel.dragging { transition: none; }
+      /* Peek doesn't scroll: to see the evidence you expand. Only the
+         expanded sheet scrolls its body. */
+      #panel-scroll { overflow: hidden; }
+      #panel.expanded #panel-scroll { overflow-y: auto; }
       /* The expand hint shows only in the peek state. */
       .more-hint { display: flex; }
       #panel.expanded .more-hint { display: none; }
