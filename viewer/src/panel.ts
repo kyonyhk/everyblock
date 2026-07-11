@@ -227,15 +227,18 @@ export function showPanel(idx: number) {
   el.innerHTML = `
     <div id="panel-grab" aria-hidden="true"></div>
     <div id="panel-header">
-      <div class="panel-head"><strong>Blk ${b.block}</strong> ${title(b.street)}</div>
+      <div class="panel-title">
+        <div class="panel-head"><strong>Blk ${b.block}</strong> ${title(b.street)}</div>
+        <div class="panel-sub muted">${town}${domType ? ` · ${domType}` : ""} · ${b.floors || "?"} floors</div>
+      </div>
       <button id="panel-share" class="pbtn" type="button" aria-label="Share this block">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M4 13v6a2 2 0 002 2h12a2 2 0 002-2v-6"/></svg>
       </button>
-      <button id="panel-close" class="pbtn" type="button" aria-label="Close">×</button>
+      <button id="panel-close" class="pbtn" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
     <div id="panel-scroll">
-      <div class="panel-sub muted">${town}${domType ? ` · ${domType}` : ""} · ${b.floors || "?"} floors</div>
-
       <div class="hero">
         <div class="hero-sold">
           ${last !== null
@@ -300,7 +303,7 @@ export function showPanel(idx: number) {
   document.getElementById("panel-close")!.addEventListener("click", ctx.onClose);
   document.getElementById("panel-share")!.addEventListener("click", async () => {
     track("share");
-    const shareTitle = `Blk ${b.block} ${title(b.street)} — every resale since 1990`;
+    const shareTitle = `Blk ${b.block} ${title(b.street)}`;
     // Native share sheet on touch devices only; desktop Chrome/Safari also
     // expose navigator.share but their sheets are worse than copy + toast.
     if (navigator.share && matchMedia("(pointer: coarse)").matches) {
