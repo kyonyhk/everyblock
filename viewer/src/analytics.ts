@@ -2,11 +2,12 @@
 // everyblock's own Convex /track endpoint. Cookieless. The server derives a
 // daily-rotating visitor hash and stores no IP or user agent. Fires only the
 // named events wired through track(); no automatic page-level tracking beyond
-// a single pageview. No-ops if the endpoint is unset (before the Convex
-// deploy) or sendBeacon is unavailable, and never throws into the app.
+// a single pageview. No-ops if the endpoint is unset (forks and local dev
+// collect nothing) or sendBeacon is unavailable, and never throws into the app.
 
-// everyblock-analytics Convex prod deployment.
-const ENDPOINT = "https://compassionate-dodo-444.convex.site/track";
+// Set VITE_ANALYTICS_ENDPOINT at build time (e.g. in Vercel project env vars)
+// to the deployment's Convex /track URL. Unset means analytics is off.
+const ENDPOINT = import.meta.env.VITE_ANALYTICS_ENDPOINT ?? "";
 
 let referrer = "";
 try {

@@ -2,6 +2,10 @@
 node_modules/
 dist/
 
+# local env (VITE_ANALYTICS_ENDPOINT etc.)
+.env
+.env.*
+
 # pipeline inputs and intermediates (regenerable via scripts/01..03)
 data/raw/
 data/interim/
