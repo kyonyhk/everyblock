@@ -81,12 +81,6 @@ body.is-loading #map {
   height:42px
 }
 
-.brand-mark {
-  width:26px;
-  height:26px;
-  color:var(--accent);
-  flex:none
-}
 #title strong,.intro-brand strong {
   font-size:27px;
   letter-spacing:-1.3px;
@@ -799,10 +793,7 @@ body.has-selection #welcome {
   font-size:20px;
   letter-spacing:-1px
 }
-#title .brand-mark {
-  width:20px;
-  height:23px
-}
+
 .brand-rule,.brand-caption {
   display:none
 }
