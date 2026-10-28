@@ -6,7 +6,7 @@
 // for the dark surface). Buildings not yet completed at the scrubbed date are
 // hidden — estates rise out of the ground as time plays.
 import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import { AmbientLight, DirectionalLight, LightingEffect } from "@deck.gl/core";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { SolidPolygonLayer, PathLayer, TextLayer } from "@deck.gl/layers";
 import { EVENTS, type Era } from "./events";
@@ -16,11 +16,12 @@ import { parseQuery, hasConstraints, type Parsed } from "./query";
 import { RAMP, LUT } from "./ramp";
 import { track } from "./analytics";
 import { DataFilterExtension, PathStyleExtension } from "@deck.gl/extensions";
-import { startLoader } from "./loader";
+import { startLoader, INTRO_VIEW } from "./loader";
+import { getTheme, getAtlasStyle, rgba } from "./theme";
 
-// The street fly-through starts before anything else so it plays for the
-// whole data download.
+// The entrance and the interactive map share one scene.
 const loader = startLoader();
+let heightScale = 1.65;
 
 type Building = {
   block: string;
@@ -70,15 +71,41 @@ const hashState = (() => {
 
 const map = new maplibregl.Map({
   container: "map",
-  style: "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json",
-  center: hashState.cam ? [hashState.cam[0], hashState.cam[1]] : [103.82, 1.352],
-  zoom: hashState.cam?.[2] ?? 11.2,
-  pitch: hashState.cam?.[3] ?? 55,
-  bearing: hashState.cam?.[4] ?? -12,
+  style: getAtlasStyle(),
+  center: hashState.cam ? [hashState.cam[0], hashState.cam[1]] : INTRO_VIEW.center,
+  zoom: hashState.cam?.[2] ?? INTRO_VIEW.zoom,
+  pitch: hashState.cam?.[3] ?? INTRO_VIEW.pitch,
+  bearing: hashState.cam?.[4] ?? INTRO_VIEW.bearing,
   maxPitch: 70,
   antialias: true,
 });
-const mapLoaded = new Promise<void>((res) => map.on("load", () => res()));
+const mapLoaded = new Promise<void>((resolve, reject) => {
+  map.once("load", () => resolve());
+  map.on("error", (event) => {
+    // A missing basemap style prevents the scene from ever becoming ready.
+    // Individual tile failures are recoverable and should not block entry.
+    if (!map.getStyle()) reject(event.error);
+  });
+});
+function atlasLighting() {
+  return [new LightingEffect({
+    ambient: new AmbientLight({ color: [246, 249, 255], intensity: 1.2 }),
+    key: new DirectionalLight({ color: [222, 236, 255], intensity: 1, direction: [-3, -5, -2] }),
+  })];
+}
+const overlay = new MapboxOverlay({ layers: [], effects: atlasLighting() });
+map.addControl(overlay as any);
+loader.attach(map, overlay);
+map.on("style.load", () => {
+  if (map.getLayer("background")) map.setPaintProperty("background", "background-color", getTheme().background);
+  const ground = { land: "#1b2027", water: "#18212a", road: "#353d48", building: "#272e37" };
+  for (const layer of map.getStyle()?.layers ?? []) {
+    if (layer.type === "fill" && /water/.test(layer.id)) map.setPaintProperty(layer.id, "fill-color", ground.water);
+    else if (layer.type === "fill" && /landcover|landuse/.test(layer.id)) map.setPaintProperty(layer.id, "fill-color", ground.land);
+    else if (layer.type === "fill" && /building/.test(layer.id)) map.setPaintProperty(layer.id, "fill-color", ground.building);
+    else if (layer.type === "line" && /road|bridge|tunnel/.test(layer.id)) map.setPaintProperty(layer.id, "line-color", ground.road);
+  }
+});
 
 // ---------------------------------------------------------------- data ----
 // The two big files stream with byte progress, driving the loader's live
@@ -93,12 +120,15 @@ function onBytes(n: number) {
   if (counterRaf) return;
   counterRaf = requestAnimationFrame(() => {
     counterRaf = 0;
-    loadFill.style.width = `${Math.min(100, (loadedBytes / EXPECTED_BYTES) * 100).toFixed(1)}%`;
+    const percent = Math.min(100, (loadedBytes / EXPECTED_BYTES) * 100);
+    loadFill.style.width = `${percent.toFixed(1)}%`;
+    document.getElementById("load-percent")!.textContent = `${Math.round(percent)}%`;
   });
 }
 
 async function fetchProgress(url: string): Promise<Uint8Array> {
   const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not load ${url}: ${res.status}`);
   if (!res.body) {
     const ab = await res.arrayBuffer();
     onBytes(ab.byteLength);
@@ -130,10 +160,14 @@ const [meta, buildings, bin, stations] = await Promise.all([
   ),
   fetchProgress("/data/transactions.bin").then((u) => u.buffer as ArrayBuffer),
   fetch("/data/stations.json").then((r) => r.json()) as Promise<Station[]>,
-]);
+]).catch((error) => {
+  loader.fail();
+  throw error;
+});
 if (counterRaf) cancelAnimationFrame(counterRaf);
 counterRaf = 0;
 loadFill.style.width = "100%";
+document.getElementById("load-percent")!.textContent = "100%";
 
 const TYPES: Record<string, any> = { Uint8Array, Uint16Array, Uint32Array };
 const col: Record<string, Uint8Array | Uint16Array | Uint32Array> = {};
@@ -215,7 +249,7 @@ const logMin = Math.log(domain[0]);
 const logSpan = Math.log(domain[1]) - logMin;
 
 // ------------------------------------------------------------- palette ----
-const NO_SALES: [number, number, number] = [56, 56, 53]; // recessive #383835
+
 
 document.getElementById("legend-bar")!.style.background =
   `linear-gradient(90deg, ${RAMP.join(",")})`;
@@ -357,12 +391,16 @@ function makeLayer(month: number) {
     getElevation: (b) => (b.year > year ? 0 : Math.max(b.floors, 3) * 2.8),
     getFillColor: (b, { index }) => {
       if (b.year > year) return [0, 0, 0, 0];
-      if (activeFilter && !filterMatch[index]) return [26, 26, 25, 150];
-      if (!cntNow[index]) return [...NO_SALES, 200];
+      if (activeFilter && !filterMatch[index]) return rgba(getTheme().noSales, 150);
+      if (!cntNow[index]) return rgba(getTheme().noSales, 230);
       const t = colorMode === "now"
         ? pctNow[index]
         : (Math.log(psmNow[index]) - logMin) / logSpan;
       const c = LUT[Math.max(0, Math.min(255, Math.round(t * 255)))];
+      if (selectedIdx !== null) {
+        const bg = rgba(getTheme().background);
+        return [c[0] * .45 + bg[0] * .55, c[1] * .45 + bg[1] * .55, c[2] * .45 + bg[2] * .55, 255];
+      }
       return [c[0], c[1], c[2], 255];
     },
     // The selected building is GPU-filtered out (a transparent fill would
@@ -371,15 +409,15 @@ function makeLayer(month: number) {
     extensions: [new DataFilterExtension({ filterSize: 1 })],
     getFilterValue: (_, { index }) => (index === selectedIdx ? 0 : 1),
     filterRange: [0.5, 1.5],
-    elevationScale: 3,
+    elevationScale: heightScale,
     pickable: true,
     onClick: ({ index }) => {
       track("click-block", { town: meta.enums.towns[buildings[index].town] });
       select(index);
     },
-    material: { ambient: 0.5, diffuse: 0.55, shininess: 40, specularColor: [60, 70, 90] },
+    material: { ambient: 0.65, diffuse: 0.45, shininess: 12, specularColor: [50, 55, 60] },
     updateTriggers: {
-      getFillColor: [month, colorMode, filterRev],
+      getFillColor: [month, colorMode, filterRev, selectedIdx],
       getElevation: year,
       getFilterValue: selectedIdx,
     },
@@ -428,8 +466,8 @@ function makeStationStructures() {
     extruded: true,
     getPolygon: (s) => s.ring as any,
     getElevation: (s) => (s.grnd === "ABOVEGROUND" ? 9 : 0.4),
-    elevationScale: 3,
-    getFillColor: (s) => (s.grnd === "ABOVEGROUND" ? [140, 137, 129, 200] : [140, 137, 129, 60]),
+    elevationScale: heightScale,
+    getFillColor: (s) => rgba(getTheme().muted, s.grnd === "ABOVEGROUND" ? 200 : 60),
     material: { ambient: 0.55, diffuse: 0.5, shininess: 30, specularColor: [60, 60, 60] },
   });
 }
@@ -459,7 +497,7 @@ function makeMrtLinkLayers() {
         [b.lon, b.lat, 2],
         [b.mrtLon, b.mrtLat, 2],
       ] as any,
-      getColor: [255, 255, 255, 150],
+      getColor: rgba(getTheme().ink, 150),
       getWidth: 1.6,
       widthUnits: "pixels",
       extensions: [new PathStyleExtension({ dash: true })],
@@ -474,13 +512,13 @@ function makeMrtLinkLayers() {
       getPosition: () => mid as any,
       getText: () => `${b.mrtM >= 1000 ? (b.mrtM / 1000).toFixed(1) + " km" : b.mrtM + " m"} · straight line`,
       getSize: 10.5,
-      getColor: [232, 231, 224, 240],
+      getColor: rgba(getTheme().ink, 240),
       getPixelOffset: [0, -10],
       fontFamily: "'Helvetica Neue', Arial, sans-serif",
       fontSettings: { sdf: true },
       characterSet: "auto",
       outlineWidth: 3,
-      outlineColor: [13, 13, 13, 220],
+      outlineColor: rgba(getTheme().surface, 220),
       parameters: { depthCompare: "always", depthWriteEnabled: false },
     }),
   ];
@@ -499,8 +537,8 @@ function makeShellLayer() {
     wireframe: true,
     getPolygon: polygonOf,
     getElevation: Math.max(b.floors, 3) * 2.8,
-    elevationScale: 3,
-    getLineColor: [255, 255, 255, 110],
+    elevationScale: heightScale,
+    getLineColor: rgba(getTheme().ink, 110),
   });
 }
 
@@ -529,7 +567,7 @@ function makeCutawayLayer() {
   }
   if (!bands.size) return null;
   const blockAvg = totalPs / totalC;
-  const entries = [...bands.entries()].map(([s, e]) => ({ s, psm: e.ps / e.c, n: e.c }));
+  const entries = [...bands.entries()].map(([s, e]) => ({ s, psm: e.ps / e.c, n: e.c })).sort((a, b) => b.s - a.s);
   const min = Math.min(...entries.map((e) => e.psm));
   const max = Math.max(...entries.map((e) => e.psm));
   // Storey bands are midpoints ("16 TO 18" -> 17) and can exceed the block's
@@ -538,7 +576,7 @@ function makeCutawayLayer() {
   const ring = polygonOf(b);
   const plates: Plate[] = entries.map((e) => ({
     ...e,
-    z: Math.min(e.s, shellFloors) * 2.8 * 3, // matches extrusion (elevationScale 3)
+    z: Math.min(e.s, shellFloors) * 2.8 * heightScale, // matches the current height scale
     t: max > min ? (e.psm - min) / (max - min) : 0.5,
     rel: e.psm / blockAvg - 1,
   }));
@@ -557,19 +595,24 @@ function makeCutawayLayer() {
     new TextLayer<Plate>({
       id: "cutaway-labels",
       data: plates,
-      // Floated above the plate so the billboarded glyphs don't z-fight
-      // with the plate polygon or the wireframe shell.
-      getPosition: (p) => [ring[0][0], ring[0][1], p.z + 3] as any,
-      getText: (p) => `F${p.s}`,
-      getSize: 12,
-      getColor: [255, 255, 255, 235],
+      // A screen-spaced column keeps bands readable at both height scales,
+      // including historical bands whose midpoint exceeds the roof height.
+      getPosition: () => [ring[0][0], ring[0][1], shellFloors * 2.8 * heightScale + 4] as any,
+      getText: (p) => `≈ F${p.s}`,
+      getSize: 10,
+      getColor: rgba(getTheme().ink, 235),
       getTextAnchor: "start",
       getAlignmentBaseline: "bottom",
-      getPixelOffset: [4, 0],
+      getPixelOffset: (_, { index }) => [80, index * 17],
+      characterSet: "auto",
+      background: true,
+      getBackgroundColor: rgba(getTheme().surface, 240),
+      backgroundPadding: [4, 2],
+      parameters: { depthCompare: "always", depthWriteEnabled: false },
       fontFamily: "'Helvetica Neue', Arial, sans-serif",
       fontSettings: { sdf: true },
       outlineWidth: 3,
-      outlineColor: [13, 13, 13, 220],
+      outlineColor: rgba(getTheme().surface, 220),
     }),
   ];
 }
@@ -578,19 +621,18 @@ function makeCutawayLayer() {
 function makeSelectionLayer() {
   if (selectedIdx === null) return null;
   const b = buildings[selectedIdx];
-  const h = Math.max(b.floors, 3) * 2.8 * 3 + 2;
+  const h = Math.max(b.floors, 3) * 2.8 * heightScale + 2;
   return new PathLayer<Building>({
     id: "selection",
     data: [b],
     getPath: (bb) => polygonOf(bb).map(([x, y]) => [x, y, h]) as any,
-    getColor: [255, 255, 255, 235],
+    getColor: rgba(getTheme().ink, 235),
     getWidth: 2.5,
     widthUnits: "pixels",
   });
 }
 
-const overlay = new MapboxOverlay({
-  layers: [],
+overlay.setProps({
   getTooltip: ({ object, index }) => {
     if (!object) return null;
     if ("psm" in object && "rel" in object) {
@@ -616,7 +658,6 @@ const overlay = new MapboxOverlay({
     };
   },
 });
-map.addControl(overlay as any);
 
 // Ticker: trailing-window median price, sales pace, blocks standing.
 const evTitle = document.getElementById("event-title")!;
@@ -674,11 +715,13 @@ function update() {
       makeStationStructures(),
       ...makeMrtLinkLayers(),
       makeShellLayer(),
-      ...(makeCutawayLayer() ?? []),
       makeSelectionLayer(),
+      ...(makeCutawayLayer() ?? []),
     ].filter(Boolean),
   });
   dateEl.textContent = monthName(curMonth);
+  slider.style.setProperty("--progress", `${curMonth / meta.maxMonth * 100}%`);
+  slider.setAttribute("aria-valuetext", monthName(curMonth));
   slider.value = String(curMonth);
   updateLegend();
   updateTicker(curMonth);
@@ -687,7 +730,8 @@ function update() {
 
 function select(idx: number | null, fly = false) {
   selectedIdx = idx;
-  if (idx === null) hidePanel();
+  document.body.classList.toggle("has-selection", idx !== null);
+  if (idx === null) { hidePanel(); map.setPadding({ top: 0, bottom: 0, left: 0, right: 0 }); }
   else {
     showPanel(idx);
     if (fly) {
@@ -697,10 +741,10 @@ function select(idx: number | null, fly = false) {
       const mobile = matchMedia("(max-width: 640px)").matches;
       map.flyTo({
         center: [b.lon, b.lat],
-        zoom: Math.max(map.getZoom(), 15.5),
-        pitch: 60,
-        duration: 2200,
-        padding: mobile ? { top: 0, bottom: innerHeight * 0.42, left: 0, right: 0 } : undefined,
+        zoom: Math.max(map.getZoom(), 16),
+        pitch: 52,
+        duration: 1400,
+        padding: mobile ? { top: 0, bottom: innerHeight * 0.40, left: 0, right: 0 } : { top: 0, bottom: 80, left: 0, right: 410 },
       });
     }
   }
@@ -738,6 +782,8 @@ segAll.addEventListener("click", () => setMode("history"));
 const slider = document.getElementById("month") as HTMLInputElement;
 const dateEl = document.getElementById("date")!;
 const playBtn = document.getElementById("play")! as HTMLButtonElement;
+document.getElementById("data-through")!.textContent = `Data through ${monthName(meta.maxMonth)}`;
+document.getElementById("last-year")!.textContent = String(yearOf(meta.maxMonth));
 slider.max = String(meta.maxMonth);
 slider.value = String(curMonth);
 
@@ -1007,13 +1053,12 @@ const SAT_STYLE: any = {
     },
   ],
 };
-const DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json";
 const baseDark = document.getElementById("base-dark")!;
 const baseSat = document.getElementById("base-sat")!;
 function setBasemap(sat: boolean) {
   baseDark.classList.toggle("on", !sat);
   baseSat.classList.toggle("on", sat);
-  map.setStyle(sat ? SAT_STYLE : DARK_STYLE);
+  map.setStyle(sat ? SAT_STYLE : getAtlasStyle());
 }
 baseDark.addEventListener("click", () => setBasemap(false));
 baseSat.addEventListener("click", () => setBasemap(true));
@@ -1044,6 +1089,7 @@ let playing = false;
 let timer: ReturnType<typeof setInterval> | null = null;
 function stop() {
   playing = false;
+  playBtn.setAttribute("aria-label", "Play timeline");
   playBtn.innerHTML = "&#9654;";
   if (timer) clearInterval(timer);
   timer = null;
@@ -1052,6 +1098,7 @@ function play() {
   if (curMonth >= meta.maxMonth) curMonth = 0;
   track("play");
   playing = true;
+  playBtn.setAttribute("aria-label", "Pause timeline");
   playBtn.innerHTML = "&#10073;&#10073;";
   timer = setInterval(() => {
     curMonth++;
@@ -1064,6 +1111,7 @@ function play() {
 }
 playBtn.addEventListener("click", () => (playing ? stop() : play()));
 window.addEventListener("keydown", (e) => {
+  if ((e.target as HTMLElement).closest("input, textarea, button, select")) return;
   if (e.code === "ArrowRight" || e.code === "ArrowLeft") {
     stop();
     curMonth = Math.max(0, Math.min(meta.maxMonth, curMonth + (e.code === "ArrowRight" ? 1 : -1)));
@@ -1075,11 +1123,36 @@ window.addEventListener("keydown", (e) => {
 
 segNow.classList.toggle("on", colorMode === "now");
 segAll.classList.toggle("on", colorMode === "history");
-await mapLoaded;
+document.getElementById("map-settings")!.addEventListener("click", () => {
+  const open = document.getElementById("legend")!.classList.toggle("open");
+  document.getElementById("map-settings")!.setAttribute("aria-expanded", String(open));
+});
+document.getElementById("view-island")!.addEventListener("click", () => {
+  select(null);
+  map.flyTo({ ...ISLAND, padding: { top: 0, bottom: 0, left: 0, right: 0 }, duration: 1600 });
+});
+for (const [id, scale] of [["height-true", 1], ["height-enhanced", 1.65]] as const) {
+  document.getElementById(id)!.addEventListener("click", () => {
+    heightScale = scale;
+    document.getElementById("height-true")!.classList.toggle("on", scale === 1);
+    document.getElementById("height-true")!.setAttribute("aria-pressed", String(scale === 1));
+    document.getElementById("height-enhanced")!.classList.toggle("on", scale !== 1);
+    document.getElementById("height-enhanced")!.setAttribute("aria-pressed", String(scale !== 1));
+    update();
+  });
+}
+document.getElementById("intro-replay")!.addEventListener("click", () => {
+  location.href = `${location.pathname}?intro=1`;
+});
+await mapLoaded.catch((error) => {
+  loader.fail();
+  throw error;
+});
+loader.stopPreview();
 // Restore a shared block selection; fly only when the link has no camera.
 if (hashState.b && byPostal.has(hashState.b)) {
   select(byPostal.get(hashState.b)!, !hashState.cam);
 } else {
   update();
 }
-loader.finish(); // crane-shot outro: ascend out of the street, crossfade to the map
+loader.finish();
