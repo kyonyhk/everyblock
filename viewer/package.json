@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "bun test src/query.test.ts",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
