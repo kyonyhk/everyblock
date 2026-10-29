@@ -1,5 +1,5 @@
 // Geocode unique block+street addresses via the OneMap search API.
-// Resumable: results checkpoint to geocode-cache.json every 200 lookups,
+// Resumable: results checkpoint to geocode-cache.json every 10 lookups,
 // so re-running skips everything already resolved.
 //
 // OneMap's documented limit is ~250 calls/min; this paces to ~180/min.
@@ -59,7 +59,8 @@ async function search(query: string): Promise<any[]> {
       }
       const json = await res.json();
       return json.results ?? [];
-    } catch {
+    } catch (error) {
+      console.warn(`OneMap attempt ${attempt + 1}/5 for ${query}: ${String(error)}`);
       await sleep(5000 * (attempt + 1));
     }
   }
@@ -113,7 +114,7 @@ async function worker() {
     cache[key] = hit;
     if (!hit) misses++;
     done++;
-    if (done % 200 === 0 || done === pending.length) {
+    if (done % 10 === 0 || done === pending.length) {
       await Bun.write(cachePath, JSON.stringify(cache));
       console.log(`${done}/${pending.length} geocoded, ${misses} misses`);
     }

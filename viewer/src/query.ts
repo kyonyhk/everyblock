@@ -11,7 +11,7 @@ export type Parsed = {
   priceMin: number | null;
 };
 
-const MAX_RE = /\b(HIGHEST|MOST EXPENSIVE|PRICIEST|RECORD|MAXIMUM|MAX|TOP) (PRICE|SALE|FLAT|PRICED?)?/;
+const MAX_RE = /\b(HIGHEST|MOST EXPENSIVE|PRICIEST|RECORD|MAXIMUM|MAX|TOP)\b/;
 const MIN_RE = /\b(CHEAPEST|LOWEST|LEAST EXPENSIVE|MINIMUM)\b/;
 
 function parsePrice(num: string, suffix: string | undefined): number {
@@ -28,7 +28,9 @@ export function parseQuery(
   flatTypes: string[],
   maxYear: number,
 ): Parsed {
-  const q = " " + raw.trim().toUpperCase().replace(/[?.,!]/g, " ").replace(/\s+/g, " ") + " ";
+  // Keep decimal points and thousands separators inside prices; remove
+  // sentence punctuation without turning "1.2m" into "1 2m".
+  const q = " " + raw.trim().toUpperCase().replace(/[?!]|(?<!\d)[.,]|[.,](?!\d)/g, " ").replace(/\s+/g, " ") + " ";
   const p: Parsed = {
     superlative: MAX_RE.test(q) ? "max" : MIN_RE.test(q) ? "min" : null,
     flatType: null,
@@ -44,12 +46,16 @@ export function parseQuery(
   else if (/\bMULTI[- ]?GEN/.test(q)) p.flatType = flatTypes.indexOf("MULTI-GENERATION");
   if (p.flatType === -1) p.flatType = null;
 
-  const under = q.match(/\b(?:UNDER|BELOW|LESS THAN|CHEAPER THAN|WITHIN|UP TO)\s*S?\$?\s*([\d.,]+)\s*(K|M|MIL|MILLION)?\b/);
+  const amount = String.raw`\s*S?\$?\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(MILLION|MIL|M|K)?\b`;
+  const under = q.match(new RegExp(String.raw`\b(?:UNDER|BELOW|LESS THAN|CHEAPER THAN|WITHIN|UP TO)` + amount));
   if (under) p.priceMax = parsePrice(under[1], under[2]);
-  const over = q.match(/\b(?:OVER|ABOVE|MORE THAN|AT LEAST|FROM)\s*S?\$?\s*([\d.,]+)\s*(K|M|MIL|MILLION)\b/);
+  const over = q.match(new RegExp(String.raw`\b(?:OVER|ABOVE|MORE THAN|AT LEAST)` + amount))
+    // "from 2020" is a date, while "from 600k" is a budget.
+    ?? q.match(/\bFROM\s*S?\$?\s*([\d.,]+)\s*(MILLION|MIL|M|K)\b/);
   if (over) p.priceMin = parsePrice(over[1], over[2]);
 
-  const year = q.match(/\b((?:19|20)\d{2})\b/);
+  const yearText = q.replace(under?.[0] ?? "", " ").replace(over?.[0] ?? "", " ");
+  const year = yearText.match(/\b((?:19|20)\d{2})\b/);
   if (year) {
     const y = Number(year[1]);
     if (y >= 1990 && y <= maxYear) p.year = y;
@@ -76,3 +82,13 @@ export function parseQuery(
 
 export const hasConstraints = (p: Parsed) =>
   p.flatType !== null || p.priceMax !== null || p.priceMin !== null;
+
+// Explicit years cover that calendar year (up to the dataset cutoff).
+// Otherwise budget filters follow the timeline's trailing 12 months.
+export function queryMonthRange(p: Parsed, month: number, maxMonth: number, window = 12): [number, number] {
+  if (p.year !== null) {
+    const start = (p.year - 1990) * 12;
+    return [Math.max(0, start), Math.min(maxMonth, start + 11)];
+  }
+  return [Math.max(0, month - window + 1), month];
+}

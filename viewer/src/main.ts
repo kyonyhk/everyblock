@@ -12,7 +12,7 @@ import { SolidPolygonLayer, PathLayer, TextLayer } from "@deck.gl/layers";
 import { EVENTS, type Era } from "./events";
 import { initPanel, showPanel, hidePanel } from "./panel";
 import { initSearch, type SearchPick, type AnswerItem, type Suggestion } from "./search";
-import { parseQuery, hasConstraints, type Parsed } from "./query";
+import { parseQuery, hasConstraints, queryMonthRange, type Parsed } from "./query";
 import { RAMP, LUT } from "./ramp";
 import { track } from "./analytics";
 import { DataFilterExtension, PathStyleExtension } from "@deck.gl/extensions";
@@ -334,8 +334,8 @@ let curMonth = hashState.m !== null
 let selectedIdx: number | null = null;
 
 // Active constraint filter ("4-room under S$600k in Punggol"): buildings
-// with no matching sale in the trailing window dim out. Recomputed on each
-// month change while active.
+// with no matching sale in the requested year or trailing window dim out.
+// Recomputed on each month change while active.
 let activeFilter: Parsed | null = null;
 let filterRev = 0;
 const filterMatch = new Uint8Array(B);
@@ -352,10 +352,10 @@ function txMatches(i: number, f: Parsed, mLo: number, mHi: number): boolean {
 
 function computeFilterMatch(f: Parsed, month: number, out: Uint8Array): number {
   out.fill(0);
-  const mLo = Math.max(0, month - WINDOW + 1);
+  const [mLo, mHi] = queryMonthRange(f, month, meta.maxMonth, WINDOW);
   let count = 0;
   for (let i = 0; i < N; i++) {
-    if (!txMatches(i, f, mLo, month)) continue;
+    if (!txMatches(i, f, mLo, mHi)) continue;
     if (!out[col.building[i]]) {
       out[col.building[i]] = 1;
       count++;
@@ -783,6 +783,7 @@ const slider = document.getElementById("month") as HTMLInputElement;
 const dateEl = document.getElementById("date")!;
 const playBtn = document.getElementById("play")! as HTMLButtonElement;
 document.getElementById("data-through")!.textContent = `Data through ${monthName(meta.maxMonth)}`;
+document.getElementById("data-through")!.title = "Latest published transaction month; it may be incomplete and revised by HDB.";
 document.getElementById("last-year")!.textContent = String(yearOf(meta.maxMonth));
 slider.max = String(meta.maxMonth);
 slider.value = String(curMonth);
@@ -836,6 +837,7 @@ function describe(p: Parsed): string {
   if (p.priceMax !== null) bits.push(`under S$${(p.priceMax / 1000).toFixed(0)}k`);
   if (p.priceMin !== null) bits.push(`over S$${(p.priceMin / 1000).toFixed(0)}k`);
   if (p.towns.length) bits.push(p.towns.map((t) => titleCase(meta.enums.towns[t])).join(" / "));
+  if (p.year !== null) bits.push(String(p.year));
   return bits.join(" · ");
 }
 
@@ -856,8 +858,7 @@ function answers(q: string): AnswerItem[] {
   const out: AnswerItem[] = [];
 
   if (p.superlative) {
-    const mLo = p.year ? Math.max(0, (p.year - 1990) * 12) : 0;
-    const mHi = p.year ? Math.min(meta.maxMonth, (p.year - 1990) * 12 + 11) : meta.maxMonth;
+    const [mLo, mHi] = queryMonthRange(p, meta.maxMonth, meta.maxMonth, meta.maxMonth + 1);
     let bestI = -1;
     for (let i = 0; i < N; i++) {
       if (!txMatches(i, p, mLo, mHi)) continue;
@@ -898,10 +899,14 @@ function answers(q: string): AnswerItem[] {
     const n = computeFilterMatch(p, curMonth, scratch);
     out.push({
       label: `Show ${describe(p)}`,
-      sub: `${n.toLocaleString()} blocks with a matching sale in the past year — others dim`,
+      sub: `${n.toLocaleString()} blocks with a matching sale ${p.year !== null ? `in ${p.year}` : "in the past year"} — others dim`,
       badge: "filter",
       run: () => {
         track("ask-filter");
+        if (p.year !== null) {
+          stop();
+          curMonth = queryMonthRange(p, curMonth, meta.maxMonth)[1];
+        }
         activeFilter = p;
         filterChip.classList.remove("hidden");
         update();

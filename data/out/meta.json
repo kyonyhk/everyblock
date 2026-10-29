@@ -1,56 +1,56 @@
 {
- "count": 968161,
+ "count": 977282,
  "monthZero": "1990-01",
  "minMonth": 0,
- "maxMonth": 438,
+ "maxMonth": 441,
  "layout": [
   {
    "name": "price",
    "type": "Uint32Array",
    "offset": 0,
-   "length": 968161
+   "length": 977282
   },
   {
    "name": "building",
    "type": "Uint16Array",
-   "offset": 3872644,
-   "length": 968161
+   "offset": 3909128,
+   "length": 977282
   },
   {
    "name": "month",
    "type": "Uint16Array",
-   "offset": 5808966,
-   "length": 968161
+   "offset": 5863692,
+   "length": 977282
   },
   {
    "name": "sqmX10",
    "type": "Uint16Array",
-   "offset": 7745288,
-   "length": 968161
+   "offset": 7818256,
+   "length": 977282
   },
   {
    "name": "leaseStart",
    "type": "Uint16Array",
-   "offset": 9681610,
-   "length": 968161
+   "offset": 9772820,
+   "length": 977282
   },
   {
    "name": "flatType",
    "type": "Uint8Array",
-   "offset": 11617932,
-   "length": 968161
+   "offset": 11727384,
+   "length": 977282
   },
   {
    "name": "flatModel",
    "type": "Uint8Array",
-   "offset": 12586093,
-   "length": 968161
+   "offset": 12704666,
+   "length": 977282
   },
   {
    "name": "storey",
    "type": "Uint8Array",
-   "offset": 13554254,
-   "length": 968161
+   "offset": 13681948,
+   "length": 977282
   }
  ],
  "enums": {
@@ -118,9 +118,9 @@
   ]
  },
  "stats": {
-  "totalRows": 980875,
+  "totalRows": 989996,
   "droppedNoGeocode": 12714,
-  "buildings": 10807,
+  "buildings": 10872,
   "buildingsWithoutHeight": 42,
   "addressesUnresolved": 150
  }
